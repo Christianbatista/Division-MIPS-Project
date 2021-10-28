@@ -1,0 +1,178 @@
+# Author: Christian Batista
+# Date:	  4/09/2020
+# Discreption:  MIPS program that will illustrate computer division as presented in the class examples
+#		8 bits (16 bit Rem/Quotient register).
+	
+	#### Marco Section ####    		
+	.macro printStr(%msg)	
+	la $a0,%msg
+	li $v0, 4       	# service 4 is print string
+	syscall
+	.end_macro
+	 
+	.macro getInt()		
+	li $v0, 5 		# service 5 is read integer
+	syscall
+	.end_macro
+	
+	.macro printInt()	
+	li  $v0, 1           	# service 1 is print integer
+    	syscall
+    	.end_macro
+    	
+    	.macro printNewline()
+	li  $v0, 11          	# service 11 is print char
+	add $a0,$0, 10		# value 124 is new line char
+    	syscall
+    	.end_macro	
+    	
+    	.macro printPipe()
+    	printSpace()
+    	li  $v0, 11          	# service 11 is print char
+	add $a0,$0, 124		# value 124 is pipe char
+    	syscall
+    	printSpace()		# call macro printSpace()
+    	.end_macro
+    	
+    	.macro printSpace()
+	li  $v0, 11          	# service 11 is print char
+	add $a0,$0, 32		# value 124 is space char
+    	syscall
+    	.end_macro
+    	
+    	#### Data Segment ####	    		    		    		    		
+	.data
+	getDividend: 	.asciiz "Please enter an integer for the dividend: "
+	getDivisor: 	.asciiz "Please enter an integer for the divisor: "
+	invalidInput: 	.asciiz "\nInteger must be between 0 and 255, Try again.\n"
+	heading:	.asciiz "\nStep|    Action    | REM     Quotient \n"
+	stepZero:	.asciiz " 0  | start values | "
+	action1:	.asciiz	"   R<<  "
+	action2:	.asciiz	"Rem=Rem-Div"
+	action3:  	.asciiz "Restore Rem"
+	remQuot:  	.asciiz "Rem Quotient\n"
+	
+	#### Text Segment ####	                                 	                               
+    	.text
+    	main:
+    		printStr(getDividend)	# print String
+    		getInt()		# display the user input value
+    		bgt $v0,255,printInv	# checking if value exceeds 255
+    		move $s0, $v0		# copy dividend value from user into $s0
+    		printStr(getDivisor)	# print String
+    		getInt()		# display the user input value
+    		bgt $v0,255,printInv	# checking if value exceeds 255
+    		move $s1, $v0		# copy divisor value from user into $s1
+		sub  $s3, $s3, $s1 	# inverse of divisor
+		sll  $s2, $s1, 8	# divisor shifted to the top byte of the lower half Word
+		sll  $s3, $s3, 8	# inverse shifted to the top byte of the lower half Word
+		move $t0, $s0		# Copy the dividend contents in $s0 to $t0 $t0 is the Rem/Quotient register
+		li   $t1, 1 		# set $t1 to value of 1
+		printStr(heading)	# Print heading
+		printStr(stepZero)      # Print String for Step Zero
+		j L1 			# jump to label L1 ( This is where the work takes place)
+
+	#### Procedure jump Section ####
+	L1:
+		jal printBits 	 	# jump to printBits statment at tartget address
+		beq $t1,9,getRemQuot  	# branch to statment at label Exit if $t1 equals value of 9
+		printNewline() 		# macro to print a new line		
+		jal printAction1 	# jump and link to target address
+		add $t1, $t1, 1		# increment counter by 1
+    		sll $t0, $t0, 1 	# shift $t0 contents left by 1 bit
+    		
+    		jal printBits		# jump and link to target address, This procedure prints out the bits
+    		printNewline()		# macro to print a new line
+    		jal printAction2	# jump and link to target address
+    		
+ 		add $t0, $t0, $s3	# adding the inverse divisor $s3 to $t0 
+ 		jal printBits		# jump and link to target address
+ 		printNewline() 		# macro to print a new line
+ 		jal printAction3	# jump and link to target address
+ 		
+ 		bltz $t0, L2   		# branch to statement L2 if $t0 is negative number  
+    		add  $t0, $t0, 1	# If $t0 is equal to zero add one, This is like bringing in the remainder 
+    		j  L1			# Jump back to the beginning of the procedure L1
+    							
+	L2:	# reset 		# This reset is as if the inverse Addition never took place. reverseing that process
+    		add $t0, $t0, $s2	# adding divisor to $t0, which will revert $t0 back value before inversion addtion
+    		j L1 			# after reset loop back through L1
+    		
+    	printBits:			# This Section Prints out the binary bits starting with the msb #16
+    		beq $t3,16,reset	# counter, so loop takes place 16 times which is the total bits of the Rem/Quotient register
+    		add $t3, $t3, 1		# increment counter
+    		move $t2, $t0 		# copying $t0 to $t2, Work taking place in $t2 for printing
+    		ror $t2, $t2, 15	# isolating individual bits to be in LS bit location
+    		sll $t2, $t2, 31	# shifting left so bit is moved to ms bit location 
+    		rol $t2, $t2, 1		# rotating left so ends up in ls bit location of word
+    		move $a0, $t2		# copying the value of 1 or zero to $a0
+    		printInt()
+    		rol $t0, $t0, 1		# rotate left because the focus is on the ms bit of the lower half word
+    		j printBits		# loop back through procedure 
+    		
+    	printAction1:
+    		printSpace()
+    		move $a0, $t1		# copying counter value to $a0 to print, this is the step value shown on console
+    		printInt()		# marco to print value in $a0 to console
+    		printSpace()
+    		printPipe()		# macro to print pipe
+    		printStr(action1)	# macro to print data R<<
+    		printSpace()
+    		printSpace()
+    		printSpace()
+    		printSpace()
+    		printPipe()		# macro to print pipe
+    		jr $ra			# return back to L1 procedure
+
+    	printAction2:
+    		printSpace()		# macro to print space
+		printSpace()
+    		printSpace()
+    		printPipe()		# macro to print pipe
+    		printStr(action2)	# macro to print data RemRem-Div
+    		printSpace()
+    		printPipe()		# macro to print pipe
+    		jr $ra 			# return back to L1 procedure
+    		
+	printAction3:
+    		printSpace()		# macro to print space
+		printSpace()
+    		printSpace()
+    		printPipe()		# macro to print pipe
+    		printStr(action3)	# macro to print data Restore REM
+    		printSpace()
+    		printPipe()
+    		jr $ra			# return back to L1 procedure
+    	
+    	# This procedure prints out the final statement to the console which is the Decimal values of the division
+    	getRemQuot:			
+    		printNewline()
+    		printStr(remQuot)
+    		move $a0, $t0		# copying the Rem/Quotient register to $a0 for faster printing 
+    		ror $a0, $a0,8		# moves the top half bits of the Lower Half word to the LS byte
+    		sll $a0, $a0, 24	# Shifts the LS byte to the MS byte of the word and getting rid of any other values 
+    		rol $a0, $a0, 8		# Rotates left to isolate btye, not in LS btye, true value 
+		printInt()		# marco to print value in $a0 to console
+		printSpace()		# macro to print space
+		printSpace()
+		printSpace()
+		printSpace()
+		printSpace()
+    		move $a0, $t0		# copying the Rem/Quotient register to $a0
+		sll $a0, $a0, 24	# Shifts the LS byte to the MS byte of the word and getting rid of any other values 
+		rol $a0, $a0, 8		# quotient Value
+		printInt()		# marco to print value in $a0 to console
+		j Exit
+	
+    	reset:
+    		ror $t0, $t0,16 	# rotate value in $t0 by 16 bits to the right
+		li  $t3, 0		# Making sure register is cleared out used for counter
+    		jr $ra			# return back to L1 procedure
+    				
+    	printInv:
+    		printStr(invalidInput)	# print data to console
+		j main			# return to Main start of program
+				
+	Exit:				# End of Program	
+		li $v0, 10          	# syscall code 10 is for exit.
+    		syscall	
